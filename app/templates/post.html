@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>{{ post.titulo }}</h2>
+    <!-- ✅ post.contenido está OK, ya lo tenías bien -->
+    <p>{{ post.contenido }}</p>
+    <p class="text-muted">Publicado por {{ post.usuario.username }} el {{ post.timestamp.strftime('%d/%m/%Y %H:%M') }}</p>
+
+    <hr>
+    <h4>Comentarios</h4>
+    {% for comentario in post.comentarios %}
+        <div class="mb-2">
+            <strong>{{ comentario.usuario.username }}</strong> 
+            <small class="text-muted">{{ comentario.timestamp.strftime('%d/%m/%Y %H:%M') }}</small>
+            <!-- 🚨 CORRECCIÓN: Usar 'contenido' en lugar de 'texto' -->
+            <p>{{ comentario.contenido }}</p>
+        </div>
+    {% else %}
+        <p>No hay comentarios aún.</p>
+    {% endfor %}
+
+    <hr>
+    <h5>Agregar un comentario</h5>
+    <form method="POST" action="{{ url_for('ver_post', post_id=post.id) }}">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+            <!-- 🚨 CORRECCIÓN: Asumimos que el campo del formulario ahora se llama 'contenido' o lo mapea -->
+            <!-- Si el formulario en Flask-WTF se llama 'texto', déjalo, pero si lo renombraste a 'contenido' en el Form, cámbialo aquí. -->
+            <!-- POR SEGURIDAD, ASUMIMOS QUE EL FORMULARIO EN PYTHON SE LLAMA AHORA 'contenido' para coincidir con el modelo. -->
+            {{ form.contenido.label(class="form-label") }}
+            {{ form.contenido(class="form-control") }}
+            {% for error in form.contenido.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {{ form.submit(class="btn btn-success") }}
+    </form>
+</div>
+{% endblock %}
