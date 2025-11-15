@@ -3,30 +3,35 @@ ROLE_MODERATOR = 'moderator'
 ROLE_ADMIN = 'admin'
 
 from datetime import datetime
-from . import db, login_manager 
+# --- CORRECCIÓN CRÍTICA: Importación absoluta para evitar el error de Flask Run ---
+from app.extensions import db, login_manager 
+# -----------------------------------------------------------------------------------
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from itsdangerous import URLSafeTimedSerializer as Serializer
-import os # Aseguramos la importación de os para get_reset_token
+import os
 
 @login_manager.user_loader
 def load_user(user_id):
-    # Asegúrate de que el nombre del modelo aquí sea el correcto (Usuario)
+    # Asume que ya tienes definido el modelo Usuario
     return Usuario.query.get(int(user_id))
 
 # Tabla de relación muchos a muchos entre Post y Categoria
-post_categoria = db.Table('post_categoria',
+post_categoria = db.Table(
+    'post_categoria',
     db.Column('post_id', db.Integer, db.ForeignKey('post.id'), primary_key=True),
     db.Column('categoria_id', db.Integer, db.ForeignKey('categoria.id'), primary_key=True)
 )
 
-class Usuario(db.Model, UserMixin):
+class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), index=True, unique=True, nullable=False)
-    email = db.Column(db.String(120), index=True, unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256))  # <-- cambiá de 128 a 256
     role = db.Column(db.String(64), default='user')
-    created_at = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
     
     posts = db.relationship('Post', backref='autor', lazy='dynamic')
     comentarios = db.relationship('Comentario', backref='autor', lazy='dynamic')
@@ -76,10 +81,9 @@ class Post(db.Model):
 
 class Comentario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    contenido = db.Column(db.Text, nullable=False) 
+    contenido = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-    # CAMBIO: Campo updated_at añadido para rastrear modificaciones
-    updated_at = db.Column(db.DateTime, index=True, default=datetime.utcnow, onupdate=datetime.utcnow) 
+    updated_at = db.Column(db.DateTime, index=True, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_visible = db.Column(db.Boolean, default=True)
     
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))

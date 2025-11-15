@@ -1,25 +1,24 @@
 from functools import wraps
-from flask import abort, jsonify
-from flask_jwt_extended import get_jwt, jwt_required, get_jwt_identity
+from flask import jsonify
+from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 # --- Decorador de Verificación de Roles ---
-
 def roles_required(*roles):
     """
-    Decorador personalizado que verifica si el usuario autenticado tiene uno de los roles permitidos.
-    Debe ser usado después de @jwt_required().
-    
-    Ejemplo: @roles_required("admin", "moderator")
+    Verifica que el usuario tenga uno de los roles permitidos.
+    Usar después de @jwt_required().
     """
     def wrapper(fn):
         @wraps(fn)
+        @jwt_required()
         def decorator(*args, **kwargs):
-            # Requiere que el JWT haya sido validado previamente.
-            claims = get_jwt()
-            user_role = claims.get('role')
+            try:
+                claims = get_jwt()
+                user_role = claims.get('role')
+            except Exception as e:
+                return jsonify({"msg": "Error al obtener roles del token.", "details": str(e)}), 500
             
             if user_role not in roles:
-                # 403 Forbidden: No tiene permiso. Devolvemos JSON.
                 return jsonify(
                     msg="Acceso denegado. Rol insuficiente.", 
                     required_roles=roles,
@@ -31,25 +30,57 @@ def roles_required(*roles):
     return wrapper
 
 # --- Función de Verificación de Propiedad ---
-
 def check_ownership(resource_owner_id):
     """
-    Verifica si el usuario actual es el dueño del recurso. 
-    Permite acceso total si el rol es 'admin' o 'moderator'.
-    
-    :param resource_owner_id: ID del usuario que creó el recurso (Post o Comentario).
-    :return: True si es dueño o admin/moderador, False en caso contrario.
+    Verifica si el usuario actual es el dueño del recurso.
+    Admin y moderator siempre tienen acceso.
     """
-    # 1. Obtener los datos del token
-    claims = get_jwt()
-    
-    # Obtener el ID del usuario del token (debe ser int)
-    current_user_id = int(get_jwt_identity()) 
+    try:
+        current_user_id = get_jwt_identity()
+        if current_user_id is None:
+            return False
+        current_user_id = int(current_user_id)
+        
+        claims = get_jwt()
+        user_role = claims.get('role', '')
 
-    # 2. El administrador/moderador siempre pueden realizar la operación
-    if claims.get('role') in ['admin', 'moderator']:
-        return True
-    
-    # 3. El usuario puede modificar/eliminar si es el dueño del recurso
-    # Aseguramos que ambos IDs sean integers antes de comparar
-    return current_user_id == int(resource_owner_id)
+        # Admin o moderator siempre pueden
+        if user_role in ['admin', 'moderator']:
+            return True
+
+        # Comparar con el owner_id
+        if resource_owner_id is None:
+            return False
+
+        return current_user_id == int(resource_owner_id)
+    except Exception as e:
+        print(f"[check_ownership] Error: {e}")
+        return False
+
+# --- Decorador auxiliar para endpoints de post ---
+def post_owner_required():
+    """
+    Verifica que el usuario sea el dueño del post o admin/moderator.
+    Debe aplicarse después de @jwt_required().
+    """
+    def wrapper(fn):
+        @wraps(fn)
+        @jwt_required()
+        def decorated(*args, **kwargs):
+            from ..models import Post  # Import local para evitar circularidad
+            post_id = kwargs.get('post_id')
+            if post_id is None:
+                return jsonify({"msg": "Falta el ID del post."}), 400
+
+            post = Post.query.get(post_id)
+            if not post:
+                return jsonify({"msg": "Post no encontrado."}), 404
+
+            if not check_ownership(post.usuario_id):
+                return jsonify({"msg": "Acceso denegado. No eres el autor ni admin/moderator."}), 403
+
+            # Pasamos el post a la función para evitar consulta extra
+            kwargs['post'] = post
+            return fn(*args, **kwargs)
+        return decorated
+    return wrapper

@@ -1,91 +1,76 @@
 import os
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager
-from datetime import timedelta
-from flask_marshmallow import Marshmallow 
-from flask_login import LoginManager 
+from flask import Flask 
 
-# Inicializaciones fuera de la función de fábrica (factory function)
-db = SQLAlchemy()
-migrate = Migrate()
-jwt = JWTManager()
-ma = Marshmallow() 
-login_manager = LoginManager()
-login_manager.login_view = 'login_api' 
-login_manager.login_message_category = 'info'
+# 1. Importar las extensiones desde el nuevo módulo 'extensions.py'
+from .extensions import db, ma, jwt, bcrypt, login_manager, migrate  # <-- Agregado migrate
 
+# Importamos los modelos para que SQLAlchemy los conozca antes de db.create_all()
+from . import models
 
-def create_app(config_class=None):
-    app = Flask(__name__)
+# Función principal para crear la aplicación (Patrón Factory)
+def create_app(test_config=None):
+    # Crear y configurar la aplicación
+    app = Flask(__name__, instance_relative_config=True) 
 
-    # Configuración
-    if config_class:
-        app.config.from_object(config_class)
-    else:
-        try:
-            from ..config import Config 
-        except ImportError:
-            class Config:
-                SECRET_KEY = os.environ.get('SECRET_KEY') or 'clave-secreta-flask'
-                SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///miniblog.db'
-                SQLALCHEMY_TRACK_MODIFICATIONS = False
-                JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'super-secreto-jwt-api'
-                JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
-            
+    # -----------------------------------------------------------
+    # CONFIGURACIÓN
+    # -----------------------------------------------------------
+    
+    # Configuración por defecto 
+    app.config.from_mapping(
+        SECRET_KEY='dev',  # ¡Cambia esto en producción!
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL') or 'sqlite:///miniblog.db',
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        JWT_SECRET_KEY='super-secreto', # ¡Cambia esto en producción!
+        JWT_TOKEN_LOCATION=['headers'],
+    )
+
+    if test_config is None:
+        # Cargar la configuración desde config.py al mismo nivel que app/
+        from config import Config
         app.config.from_object(Config)
 
-    # Inicializar extensiones
+    # Asegurarse de que el directorio de instancia exista
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+    # -----------------------------------------------------------
+    # INICIALIZAR EXTENSIONES
+    # -----------------------------------------------------------
     db.init_app(app)
-    migrate.init_app(app, db)
+    ma.init_app(app)
     jwt.init_app(app)
-    ma.init_app(app) 
-    login_manager.init_app(app) 
+    bcrypt.init_app(app)
+    login_manager.init_app(app)
+    migrate.init_app(app, db)  # <-- Habilita Flask-Migrate
 
-    # --- FIX CLAVE PARA EL ERROR 'Subject must be a string' (422) ---
-    @jwt.user_identity_loader
-    def user_identity_lookup(user_id):
-        # Asegura que el ID de usuario siempre sea un string para el token.
-        return str(user_id) 
+    # Crear las tablas de la base de datos si no existen
+    with app.app_context():
+        db.create_all()
 
-    @jwt.user_lookup_loader
-    def user_lookup_callback(_jwt_header, jwt_data):
-        # Importación de modelos DENTRO de la función para el JWT callback
-        from .models import Usuario 
-        identity = jwt_data["sub"]
-        try:
-            # Convierte el string de vuelta a int para la consulta
-            return Usuario.query.filter_by(id=int(identity)).one_or_none()
-        except ValueError:
-            return None
-    # -----------------------------------------------------------------------
-
-    # Registro de Vistas (Blueprints)
+    # -----------------------------------------------------------
+    # REGISTRAR RUTAS Y BLUEPRINTS (Importaciones al final)
+    # -----------------------------------------------------------
     
-    # Rutas API (Auth) - Mantenidas con registro manual
+    # Rutas API (Auth)
     from .views.auth_views import RegisterAPI, LoginAPI, UserDetailAPI
+    
     app.add_url_rule('/api/register', view_func=RegisterAPI.as_view('register_api'), methods=['POST'])
     app.add_url_rule('/api/login', view_func=LoginAPI.as_view('login_api'), methods=['POST'])
     app.add_url_rule('/api/user', view_func=UserDetailAPI.as_view('user_detail_api'), methods=['GET'])
 
-    # Rutas API (Category) - Mantenidas con registro manual
-    from .views.category_views import CategoryListAPI, CategoryDetailAPI
-    app.add_url_rule('/api/categories', view_func=CategoryListAPI.as_view('category_list_api'), methods=['GET', 'POST'])
-    app.add_url_rule('/api/categories/<int:category_id>', view_func=CategoryDetailAPI.as_view('category_detail_api'), methods=['GET', 'PUT', 'DELETE'])
-    
-    # Rutas API (Post) - Mantenidas con registro manual
-    from .views.post_views import PostListAPI, PostDetailAPI
-    app.add_url_rule('/api/posts', view_func=PostListAPI.as_view('post_list_api'), methods=['GET', 'POST'])
-    app.add_url_rule('/api/posts/<int:post_id>', view_func=PostDetailAPI.as_view('post_detail_api'), methods=['GET', 'PUT', 'DELETE'])
-    
-    # -----------------------------------------------------------------------------
-    # Se eliminaron las dos líneas de registro manual de la CommentListAPI y CommentDetailAPI
-    # para evitar duplicidad, ya que ahora se registran en api_routes.py con Flask-RESTful.
-    # -----------------------------------------------------------------------------
-
-    # Registra el Blueprint de la API, el cual contiene SOLO las rutas de Comentarios.
+    # Registra el Blueprint de la API 
     from .api_routes import api_bp
     app.register_blueprint(api_bp)
 
+    # Ruta de ejemplo
+    @app.route('/hello')
+    def hello():
+        return 'Hello, World!'
+
     return app
+
+# La aplicación debe ser accesible globalmente para el comando 'flask run'
+app = create_app()
