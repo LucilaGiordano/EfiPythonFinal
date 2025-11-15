@@ -1,3 +1,7 @@
+ROLE_USER = 'user'
+ROLE_MODERATOR = 'moderator'
+ROLE_ADMIN = 'admin'
+
 from datetime import datetime
 from . import db, login_manager 
 from werkzeug.security import generate_password_hash, check_password_hash

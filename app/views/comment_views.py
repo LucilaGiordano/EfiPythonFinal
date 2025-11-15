@@ -1,12 +1,16 @@
-from flask import request
+from flask import request, jsonify
 from flask_restful import Resource
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt # <- 1. Importación: Se añade 'get_jwt'
 from marshmallow import ValidationError
-from datetime import datetime # Importamos datetime para usar en onupdate
+from datetime import datetime
 
 # La importación 'db' confirmada para manejar la persistencia
-from ..models import db, Comentario, Post
-from ..schemas.comment_schemas import comentarios_schema, comentario_schema
+from app import db # Importación ajustada para consistencia
+from app.models import Comentario, Post # Importación ajustada para consistencia
+from app.schemas.comment_schemas import comentarios_schema, comentario_schema
+
+# 🚨 1. Importación: Se añaden los decoradores de seguridad
+from app.decorators.auth_decorators import roles_required, check_ownership 
 
 class CommentListAPI(Resource):
     def get(self, post_id):
@@ -24,7 +28,10 @@ class CommentListAPI(Resource):
     def post(self, post_id):
         """Crea un nuevo comentario para un Post específico."""
         try:
-            current_user_id = get_jwt_identity()
+            # 1. Obtener la identidad de forma robusta (compatible con ID simple o diccionario)
+            identity = get_jwt_identity()
+            current_user_id = identity.get('id') if isinstance(identity, dict) else identity
+            
             Post.query.get_or_404(post_id)
 
             json_data = request.get_json()
@@ -56,25 +63,31 @@ class CommentListAPI(Resource):
             return {'message': f'Error al crear comentario: {e}'}, 500
 
 class CommentDetailAPI(Resource):
+    
+    # Añadido método GET (opcional, pero buena práctica RESTful)
+    def get(self, comment_id):
+        comment = Comentario.query.get_or_404(comment_id)
+        if not comment or not comment.is_visible:
+            return {"message": "Comentario no encontrado"}, 404
+            
+        result = comentario_schema.dump(comment)
+        return {'status': 'success', 'data': result}, 200
+
     @jwt_required()
     def put(self, comment_id):
         """Actualiza un comentario existente."""
         try:
-            # current_user_id es probable que sea una cadena (str)
-            current_user_id = get_jwt_identity()
             comentario = Comentario.query.get_or_404(comment_id)
 
-            # CORRECCIÓN: Usamos str() para comparar el entero (comentario.usuario_id) 
-            # con la cadena (current_user_id) y evitar el 403.
-            if str(comentario.usuario_id) != str(current_user_id):
-                return {'message': 'Permiso denegado: solo el autor puede editar el comentario'}, 403
+            # 🛑 2. CAMBIO CLAVE: Usamos check_ownership (incluye lógica de Admin/Moderador)
+            if not check_ownership(comentario.usuario_id):
+                return {'message': 'Permiso denegado: No tienes autorización para editar este recurso.'}, 403
 
             json_data = request.get_json()
             if not json_data:
                 return {'message': 'No input data provided'}, 400
 
             # Carga de datos para actualizar la instancia existente
-            # Flask-SQLAlchemy maneja el updated_at automáticamente si está configurado
             data = comentario_schema.load(json_data, instance=comentario, partial=True)
             
             # Persistencia de la actualización (Método correcto con SQLAlchemy)
@@ -93,12 +106,11 @@ class CommentDetailAPI(Resource):
     def delete(self, comment_id):
         """Elimina (oculta) un comentario."""
         try:
-            current_user_id = get_jwt_identity()
             comentario = Comentario.query.get_or_404(comment_id)
             
-            # CORRECCIÓN: Usamos str() para comparar el ID del autor y el ID del token.
-            if str(comentario.usuario_id) != str(current_user_id):
-                return {'message': 'Permiso denegado: solo el autor puede eliminar el comentario'}, 403
+            # 🛑 3. CAMBIO CLAVE: Usamos check_ownership (incluye lógica de Admin/Moderador)
+            if not check_ownership(comentario.usuario_id):
+                return {'message': 'Permiso denegado: No tienes autorización para eliminar este recurso.'}, 403
 
             # Eliminación lógica
             comentario.is_visible = False

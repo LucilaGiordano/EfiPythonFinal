@@ -2,39 +2,95 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>{{ post.titulo }}</h2>
-    <!-- ✅ post.contenido está OK, ya lo tenías bien -->
-    <p>{{ post.contenido }}</p>
-    <p class="text-muted">Publicado por {{ post.usuario.username }} el {{ post.timestamp.strftime('%d/%m/%Y %H:%M') }}</p>
 
-    <hr>
-    <h4>Comentarios</h4>
-    {% for comentario in post.comentarios %}
-        <div class="mb-2">
-            <strong>{{ comentario.usuario.username }}</strong> 
-            <small class="text-muted">{{ comentario.timestamp.strftime('%d/%m/%Y %H:%M') }}</small>
-            <!-- 🚨 CORRECCIÓN: Usar 'contenido' en lugar de 'texto' -->
-            <p>{{ comentario.contenido }}</p>
+    <!-- ---------------------------------------------------- -->
+    <!-- 1. POST: Contenido y Botones de Acción (Roles/Propiedad) -->
+    <!-- ---------------------------------------------------- -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title text-primary">{{ post.titulo }}</h2>
+            <p class="card-text">{{ post.contenido }}</p>
+            <p class="text-muted small">Publicado por <strong>{{ post.autor.username }}</strong> el {{ post.timestamp.strftime('%d/%m/%Y %H:%M') }}</p>
+
+            {% if current_user.is_authenticated %}
+                {# REGLA DE POSTS: Solo autor O administrador (Moderador NO puede eliminar posts de otros) #}
+                {% if current_user == post.autor or current_user.role == 'admin' %}
+                    
+                    <a href="{{ url_for('main.editar_post', post_id=post.id) }}" class="btn btn-warning btn-sm me-2">
+                        <i class="fas fa-edit"></i> Editar Post
+                    </a>
+                    
+                    <form method="POST" action="{{ url_for('main.eliminar_post', post_id=post.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar este post? ¡Esta acción es irreversible!');">
+                            <i class="fas fa-trash"></i> Eliminar Post
+                        </button>
+                    </form>
+                {% endif %}
+            {% endif %}
         </div>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- ---------------------------------------------------- -->
+    <!-- 2. COMENTARIOS: Listado y Botones de Eliminación (Roles/Propiedad) -->
+    <!-- ---------------------------------------------------- -->
+    <h4 class="mb-3">Comentarios ({{ post.comentarios | length }})</h4>
+    
+    {% for comentario in post.comentarios %}
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            
+            <p class="card-text mb-1">{{ comentario.contenido }}</p>
+            
+            <footer class="blockquote-footer d-flex justify-content-between align-items-center mt-1">
+                <span class="text-muted">
+                    <strong>{{ comentario.autor.username }}</strong> | {{ comentario.created_at.strftime('%d/%m/%Y %H:%M') }}
+                </span>
+                
+                {% if current_user.is_authenticated %}
+                    {# REGLA DE COMENTARIOS: Dueño O (Moderador O Administrador) #}
+                    {% if current_user == comentario.autor or current_user.role in ['moderator', 'admin'] %}
+                        
+                        <form method="POST" action="{{ url_for('main.eliminar_comentario', comentario_id=comentario.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-link p-0 text-danger" onclick="return confirm('¿Eliminar este comentario?');" title="Eliminar Comentario">
+                                <i class="fas fa-times-circle"></i> Eliminar
+                            </button>
+                        </form>
+                        
+                    {% endif %}
+                {% endif %}
+            </footer>
+        </div>
+    </div>
     {% else %}
         <p>No hay comentarios aún.</p>
     {% endfor %}
 
-    <hr>
-    <h5>Agregar un comentario</h5>
-    <form method="POST" action="{{ url_for('ver_post', post_id=post.id) }}">
-        {{ form.hidden_tag() }}
-        <div class="mb-3">
-            <!-- 🚨 CORRECCIÓN: Asumimos que el campo del formulario ahora se llama 'contenido' o lo mapea -->
-            <!-- Si el formulario en Flask-WTF se llama 'texto', déjalo, pero si lo renombraste a 'contenido' en el Form, cámbialo aquí. -->
-            <!-- POR SEGURIDAD, ASUMIMOS QUE EL FORMULARIO EN PYTHON SE LLAMA AHORA 'contenido' para coincidir con el modelo. -->
-            {{ form.contenido.label(class="form-label") }}
-            {{ form.contenido(class="form-control") }}
-            {% for error in form.contenido.errors %}
-                <div class="text-danger">{{ error }}</div>
-            {% endfor %}
+    <hr class="my-4">
+
+    <!-- ---------------------------------------------------- -->
+    <!-- 3. AGREGAR COMENTARIO -->
+    <!-- ---------------------------------------------------- -->
+    <h5 class="mb-3">Agregar un comentario</h5>
+    
+    {% if current_user.is_authenticated %}
+        <form method="POST" action="{{ url_for('main.ver_post', post_id=post.id) }}">
+            {{ form.hidden_tag() }}
+            <div class="mb-3">
+                {{ form.contenido.label(class="form-label") }}
+                {{ form.contenido(class="form-control", rows="3") }}
+                {% for error in form.contenido.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            <a href="{{ url_for('main.login', next=request.path) }}" class="alert-link">Inicia sesión</a> para dejar un comentario.
         </div>
-        {{ form.submit(class="btn btn-success") }}
-    </form>
+    {% endif %}
+
 </div>
 {% endblock %}
