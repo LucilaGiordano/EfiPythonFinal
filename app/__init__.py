@@ -69,6 +69,23 @@ def create_app(test_config=None):
     @app.route('/hello')
     def hello():
         return 'Hello, World!'
+    @app.route('/')
+    def home():
+        return {
+        "project": "MiniBlog API",
+        "version": "1.0",
+        "status": "OK",
+        "endpoints": {
+            "login": "/api/login",
+            "register": "/api/register",
+            "posts": "/api/posts",
+            "categories": "/api/categories",
+            "comments": "/api/comments",
+            "users": "/api/users"
+        }
+    }
+
+    
 
     return app
 

@@ -1,0 +1,78 @@
+-- ===============================
+-- CREACIÓN DE TABLAS
+-- ===============================
+
+-- Tabla Usuarios
+CREATE TABLE IF NOT EXISTS usuario (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla Categorías
+CREATE TABLE IF NOT EXISTS categoria (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL UNIQUE
+);
+
+-- Tabla Posts
+CREATE TABLE IF NOT EXISTS post (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(255) NOT NULL,
+    contenido TEXT NOT NULL,
+    usuario_id INTEGER NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+    is_published BOOLEAN NOT NULL DEFAULT TRUE,
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Tabla relación Post-Categoría (muchos a muchos)
+CREATE TABLE IF NOT EXISTS post_categoria (
+    post_id INTEGER REFERENCES post(id) ON DELETE CASCADE,
+    categoria_id INTEGER REFERENCES categoria(id) ON DELETE CASCADE,
+    PRIMARY KEY (post_id, categoria_id)
+);
+
+-- Tabla Comentarios
+CREATE TABLE IF NOT EXISTS comentario (
+    id SERIAL PRIMARY KEY,
+    contenido TEXT NOT NULL,
+    post_id INTEGER NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    usuario_id INTEGER NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_visible BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- ===============================
+-- DATOS DE PRUEBA
+-- ===============================
+
+-- Usuarios
+INSERT INTO usuario (username, email, password_hash, role)
+VALUES 
+('AdminUser', 'L@gmail.com', '$2b$12$XXXXXXXXXXXXXXXXXXXXXXXXXXXXX', 'admin'),
+('ModUser', 'eliana@gmail.com', '$2b$12$XXXXXXXXXXXXXXXXXXXXXXXXXXXXX', 'moderator'),
+('NormalUser', 'T@gmail.com', '$2b$12$XXXXXXXXXXXXXXXXXXXXXXXXXXXXX', 'user');
+
+-- NOTA: reemplazar los password_hash con los generados usando bcrypt para "12345678"
+
+-- Categorías
+INSERT INTO categoria (nombre) VALUES ('General');
+
+-- Posts
+INSERT INTO post (titulo, contenido, usuario_id, is_published)
+VALUES 
+('Primer Post', 'Este es el primer post de prueba', 3, TRUE);
+
+-- Relación Post-Categoría
+INSERT INTO post_categoria (post_id, categoria_id)
+VALUES (1, 1);
+
+-- Comentarios
+INSERT INTO comentario (contenido, post_id, usuario_id, is_visible)
+VALUES 
+('Primer comentario de prueba', 1, 2, TRUE);

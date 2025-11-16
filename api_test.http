@@ -1,0 +1,123 @@
+### LOGIN - Admin
+POST http://127.0.0.1:5000/api/login
+Content-Type: application/json
+
+{
+  "email": "L@gmail.com",
+  "password": "12345678"
+}
+
+### LOGIN - Moderator
+POST http://127.0.0.1:5000/api/login
+Content-Type: application/json
+
+{
+  "email": "eliana@gmail.com",
+  "password": "12345678"
+}
+
+### LOGIN - Usuario
+POST http://127.0.0.1:5000/api/login
+Content-Type: application/json
+
+{
+  "email": "T@gmail.com",
+  "password": "12345678"
+}
+
+### GET ALL POSTS - Público
+GET http://127.0.0.1:5000/api/posts
+
+### GET POST POR ID - Público
+GET http://127.0.0.1:5000/api/posts/1
+
+### CREAR POST - Usuario/Admin (requiere JWT)
+POST http://127.0.0.1:5000/api/posts
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "titulo": "Post de prueba",
+  "contenido": "Contenido de prueba para el post",
+  "categoria_ids": [1]
+}
+
+### EDITAR POST - Solo Autor/Admin
+PUT http://127.0.0.1:5000/api/posts/1
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "titulo": "Post editado",
+  "contenido": "Contenido actualizado"
+}
+
+### ELIMINAR POST - Solo Autor/Admin
+DELETE http://127.0.0.1:5000/api/posts/1
+Authorization: Bearer {{TOKEN}}
+
+### GET COMENTARIOS DE UN POST
+GET http://127.0.0.1:5000/api/posts/1/comments
+
+### CREAR COMENTARIO - Usuario/Admin
+POST http://127.0.0.1:5000/api/posts/1/comments
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "contenido": "Este es un comentario de prueba"
+}
+
+### ELIMINAR COMENTARIO - Autor/Moderator/Admin
+DELETE http://127.0.0.1:5000/api/comments/1
+Authorization: Bearer {{TOKEN}}
+
+### GET CATEGORÍAS - Público
+GET http://127.0.0.1:5000/api/categories
+
+### CREAR CATEGORÍA - Moderator/Admin
+POST http://127.0.0.1:5000/api/categories
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "nombre": "Categoría de prueba"
+}
+
+### EDITAR CATEGORÍA - Moderator/Admin
+PUT http://127.0.0.1:5000/api/categories/1
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "nombre": "Categoría actualizada"
+}
+
+### ELIMINAR CATEGORÍA - Solo Admin
+DELETE http://127.0.0.1:5000/api/categories/1
+Authorization: Bearer {{TOKEN}}
+
+### GET USUARIOS - Solo Admin
+GET http://127.0.0.1:5000/api/users
+Authorization: Bearer {{TOKEN}}
+
+### GET USUARIO POR ID - Mismo usuario o Admin
+GET http://127.0.0.1:5000/api/users/1
+Authorization: Bearer {{TOKEN}}
+
+### CAMBIAR ROL DE USUARIO - Solo Admin
+PATCH http://127.0.0.1:5000/api/users/2/role
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "role": "moderator"
+}
+
+### DESACTIVAR USUARIO - Solo Admin
+DELETE http://127.0.0.1:5000/api/users/3
+Authorization: Bearer {{TOKEN}}
+
+### ESTADÍSTICAS - Moderator/Admin
+GET http://127.0.0.1:5000/api/stats
+Authorization: Bearer {{TOKEN}}
